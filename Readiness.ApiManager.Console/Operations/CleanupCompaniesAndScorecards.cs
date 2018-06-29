@@ -36,22 +36,52 @@ namespace Readiness.ApiManager.Console.Operations
 			var response2 = await Client.GetAsync("v1/companies");
 			response2.EnsureSuccessStatusCode();
 			var companies = await response2.Content.ReadAsAsync<IEnumerable<CompanyDto>>();
+
+			var listOfCompanies = (companies.Where(x => x.Name.StartsWith("Smoketest Company "))).ToList();
+			//var listOfCompanies = (companies.Where(x => x.Name.StartsWith("Smoketest advising company "))).ToList();
 			
-			var listOfCompanies = companies.Where(x => x.Name.StartsWith("API Tests - Company"));
+			System.Console.WriteLine("Total companies in filter: " + listOfCompanies.Count);
 
-			foreach (var company in listOfCompanies)
+			var i = 0;
+
+			var tasks = new List<Task>();
+
+			while (i <= listOfCompanies.Count-1)
 			{
-				System.Console.WriteLine($"Company {company.Name} = {company.Id}");
+				var c = listOfCompanies[i];
 
-				var scs = await GetScorecards(company.Id);
+				tasks.Add(Task.Run(async () => await DeleteCompanyAndScorecards(c)));
 
-				foreach (var sc in scs.Data)
+				i++;
+
+				if (i % 25 == 0)
 				{
-					var del = await DeleteScorecard(sc.Id);
-				}
+					Task.WaitAll(tasks.ToArray());
+					tasks = new List<Task>();
 
-				var deleteResponse = await DeleteCompany(company.Id);
+					System.Threading.Thread.Sleep(100);
+				}
 			}
+
+			System.Console.WriteLine("-end-");
+		}
+
+		private async Task<DeletedDto> DeleteCompanyAndScorecards(CompanyDto company)
+		{
+			System.Console.WriteLine($"Company '{company.Name}' = {company.Id}");
+
+			var scs = await GetScorecards(company.Id);
+
+			foreach (var sc in scs.Data)
+			{
+				var del = await DeleteScorecard(sc.Id);
+			}
+
+			var deleteResponse = await DeleteCompany(company.Id);
+
+			System.Console.WriteLine($"Deleted company '{company.Name}' [{deleteResponse.Id}]");
+
+			return deleteResponse;
 		}
 
 		private async Task<PagedResult<ScorecardDto>> GetScorecards(int companyId)
@@ -73,9 +103,10 @@ namespace Readiness.ApiManager.Console.Operations
 			}
 			catch (Exception e)
 			{
-				System.Console.WriteLine(e);
-				throw;
+				System.Console.WriteLine("ERROR:" + e.Message);
 			}
+
+			return null;
 		}
 
 		private async Task<DeletedDto> DeleteScorecard(int scorecardId)
@@ -90,7 +121,7 @@ namespace Readiness.ApiManager.Console.Operations
 			try
 			{
 				var response = await Client.PostAsJsonAsync("v1/login", 
-					new EmailPasswordApiModel { Email = "readiness.admin@ansarada.com", Password = "36Fd1OGLZYwYWQx4pYAa" });
+					new EmailPasswordApiModel { Email = "readiness.admin@ansarada.com", Password = "" });
 				response.EnsureSuccessStatusCode();
 				var content = await response.Content.ReadAsAsync<LoginResponseDto>();
 				Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", content.AccessToken);

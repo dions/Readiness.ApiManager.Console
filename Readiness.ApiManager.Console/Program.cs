@@ -19,6 +19,7 @@ namespace Readiness.ApiManager.Console
 			var cleanup = new CleanupCompaniesAndScorecards();
 			Task.Run(cleanup.Execute).Wait();
 
+			System.Console.WriteLine("-end of operation-");
 			System.Console.ReadLine();
 		}
 	}
